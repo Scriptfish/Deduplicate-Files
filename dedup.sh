@@ -151,9 +151,9 @@ printf "Delete hard links: $deleteHardLinks\n\n" >> "$(eval echo $myLogFile)"
 
 
 if [[ ! -d $searchFolder ]]; then # Verify that the folder exists and is a folder.
-  printf "Error: Unable to locate a folder with that name.\n"
-  printf "Check that the folder exists, is a folder, has that name, and is at that location.\n"
-  printf "For usage information, use dedup.sh --help.\n\n"
+  printf "Error: Unable to locate a folder with that name.\n" | tee -a "$(eval echo $myLogFile)"
+  printf "Check that the folder exists, is a folder, has that name, and is at that location.\n" | tee -a "$(eval echo $myLogFile)"
+  printf "For usage information, use dedup.sh --help.\n\n" | tee -a "$(eval echo $myLogFile)"
   exit 1
 fi
 
