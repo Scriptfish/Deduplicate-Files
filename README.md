@@ -5,6 +5,8 @@ Summary:
 
 There are two versions of this program. "dedup.sh" is a version intended to be run from the command line. "Duplicate Files.workflow" is an Automator action intended for use on computers running Apple's macOS. It has fewer features, than the shell script version, but it may be more convenient for some macOS users. You'll find the workflow inside the .zip file.
 
+
+
 Basic Instructions:
 
 1.) I advise users to make backups before using this program.
