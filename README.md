@@ -14,3 +14,5 @@ Basic Instructions:
 2.) The program takes one or more folders as an input. The default behavior is to list duplicates in the folders. Other behaviors can be chosen during the pop-ups in the Automator variant or with arguments in the shell script variant.
 
 3.) Shell script users can learn about all of the features with dedup.sh help
+
+4.) Now that I have introduced deduplicating multiple folders, please be careful to avoid deduplicating folders against themselves or deduplicating folders that contain one another. I have a safeguard to prevent users from doing this by mistake, but I would still suggest not doing this.
