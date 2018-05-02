@@ -10,8 +10,8 @@ Name
 
 Synopsis
 	dedup.sh [list] [folder(s)]
-	dedup.sh [delete] [--force] [--deletehl] [folder(s)]
-	dedup.sh [hardlink] [--force] [folder(s)]
+	dedup.sh [delete] [force] [deletehl] [folder(s)]
+	dedup.sh [hardlink] [force] [folder(s)]
         dedup.sh help
 
 
@@ -48,8 +48,8 @@ Exit Status
 	duplicates exist)
 1       Search folder not found
 2       Usage issue
-3       The program exited becasue a file failed to delete. This never
-	is used with --force enabled.
+3       The program exited because a file failed to delete. This never
+	is used with force enabled.
 4	An error occurred while listing files to compare.
 
 EOF)"
@@ -68,9 +68,12 @@ do
   if [[ -z "$mode" ]] && ( [[ "$arg" == "help" ]]||[[ "$arg" == "list" ]]||[[ "$arg" == "delete" ]]||[[ "$arg" == "hardlink" ]] ); then
     if [[ -z "$mode" ]]; then
       mode="$arg"
+      if [[ "$mode" == "help" ]]; then
+        printUsage 0
+      fi
     else
       # then the user is providing multiple modes, which is unexpected. Error out.
-      printf "Error: Muliptle modes have been provided, $mode and $arg.\n" | tee -a "$(eval echo $myLogFile)"
+      printf "Error: Multiple modes have been provided, $mode and $arg.\n" | tee -a "$(eval echo $myLogFile)"
       printf "For usage information, use dedup.sh help.\n\n" | tee -a "$(eval echo $myLogFile)"
       exit 2
     fi
@@ -123,7 +126,7 @@ if [[ -z "$searchFolders" ]]; then
   if [[ ! -d $searchFolders ]]; then # Verify that the folder exists and is a folder.
     printf "Error: Unable to locate a folder with that name.\n" | tee -a "$(eval echo $myLogFile)"
     printf "Check that the folder exists, is a folder, has that name, and is at that location.\n" | tee -a "$(eval echo $myLogFile)"
-    printf "For usage information, use dedup.sh --help.\n\n" | tee -a "$(eval echo $myLogFile)"
+    printf "For usage information, use dedup.sh help.\n\n" | tee -a "$(eval echo $myLogFile)"
     exit 1
   else
     searchFolders="\"$searchFolders\"" # add quotes around the folder.
@@ -138,12 +141,12 @@ printf "Delete hard links: $deleteHardLinks\n\n" >> "$(eval echo $myLogFile)"
 
 
 # Find, within that folder, all normal files that aren't .DS_Store or .localized.
-# Also exlcude anything that's in a folder that has a . in the folder name.
+# Also exclude anything that's in a folder that has a . in the folder name.
 # We don't want to deduplicate anything inside of a .app or the like.
 #
-# This requires a goofy-looking regex, but that's because I don't wnat to just
+# This requires a goofy-looking regex, but that's because I don't want to just
 # Look for any two dots in the path. That would exclude .tar.gz files, for example,
-# and it would still deduplicate extensionless files inside of a .app directory.
+# and it would still deduplicate extension-less files inside of a .app directory.
 #
 # Then, hash each of those files and find both their hashes and  sort the list by
 # hash and inode number, so that duplicates and hard links are both easy to find.
@@ -161,7 +164,7 @@ if [[ "$?" -ne 0 ]]; then
   exit 4
 fi
 
-# Then, we loop through the results, and extract the relevant data. I'm doing this within a subshell and storing the output in a variable.
+# Then, we loop through the results, and extract the relevant data. I'm doing this within a sub-shell and storing the output in a variable.
 searchResults="$( for ((ix=1; ix<$(echo "$searchResultPairs" | wc -l); ix+=2)); do
   echo "$( echo "$searchResultPairs" | head -n $ix | tail -n 1 | awk '{print $1}' ) $( echo "$searchResultPairs" | head -n $(( $ix + 1 )) | tail -n 1 )"
 done )"
