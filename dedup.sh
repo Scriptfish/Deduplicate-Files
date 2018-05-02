@@ -155,9 +155,11 @@ printf "Delete hard links: $deleteHardLinks\n\n" >> "$(eval echo $myLogFile)"
 # way multiple files are handles. That means even more backslashes than normal, throughout the find command.
 #
 # This has a few steps. First, we get all the files with hashes and inodes, and we pair them by file.
-searchResultPairs=$( eval find "$searchFolders" -type f \\\! \\\( -name \".DS_Store\" -or -name \".localized\" -or -regex \"\.\*\\\.\.\*\/\.\*\" \\\) -exec ls -i {} \\\; -exec shasum {} \\\; | rev | sort | rev )
+searchResultPairs=$( eval find "$searchFolders" -type f \\\! \\\( -name \".DS_Store\" -or -name \".localized\" -or -regex \"\.\*\\\.\.\*\/\.\*\" \\\) -exec ls -i {} \\\; -exec shasum {} \\\; | sort | uniq | rev | sort | rev )
 # I recognize that this looks dizzying. The body of this find command will ultimately become -type f ! ( -name .DS_Store -or -name .localized -or -regex .*\..*/.* ) -exec ls -i {} ; -exec shasum {} ;
-# That looks a lot simpler.
+# | sort | uniq: This is a safeguard against the user accidentally specifying the same folder twice or one folder that contains another folder. It's not perfect, but I'm trying not to delete everyone's data if they make a mistake.
+# | rev | sort | rev: We're sorting by the shasum hash, then by the inode number, and lastly by the file name.
+
 if [[ "$?" -ne 0 ]]; then
   # Then something went wrong with the find command.
   echo "Echo: An unexpected error occurred while finding files. Exiting." | tee -a "$(eval echo $myLogFile)"
