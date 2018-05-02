@@ -9,153 +9,133 @@ Name
 	dedup.sh
 
 Synopsis
-	dedup.sh [--list] [folder]
-	dedup.sh [--delete] [--force] [--deletehl] [folder]
-	dedup.sh [--hardlink] [--force] [folder]
-        dedup.sh --help
+	dedup.sh [list] [folder(s)]
+	dedup.sh [delete] [--force] [--deletehl] [folder(s)]
+	dedup.sh [hardlink] [--force] [folder(s)]
+        dedup.sh help
 
 
 Description
-	Search for duplicate files (i.e. files that are truly bitwise-identical,
-	ignoring the name) and optionally remove them or replace them with hard
-	links to free up storage space. Symbolic links are always ignored.
+	Search for and list duplicate files (i.e. files that are truly bitwise-
+	identical, ignoring the name) in any of the provided folders, recursively
+	and with no limit to depth. Optionally remove duplicates or replace them
+	with hard links to free up storage space. Symbolic links are always ignored.
+	
+	There is no option for per-folder deduplication. Users who require per-folder
+	deduplication, should run the program multiple times, once per folder.
 
---help			Display this help information.
---list (Default)	List duplicate files but do not change them.
+help			Display this help information.
+list	 (Default)	List duplicate files but do not change them.
 			Inode numbers are listed so that you can determine if
 			the duplication is actually hard linking to the same
 			inode. The column order is shasum hash, inode number,
 			then path to the file.
---delete                Delete duplicate files (unless they are hard links to
+delete			Delete duplicate files (unless they are hard links to
                         the same inode). Exit 3 immediately if a file fails
 			to delete for any reason.
-	--force		Instead of exiting 3, attempt to proceed even if files
+	force		Instead of exiting 3, attempt to proceed even if files
 			fail to delete.
-	--deletehl	Delete duplicates, including hard links to the same
+	deletehl	Delete duplicates, including hard links to the same
 			inode. This may help with tidiness and confusion issues,
 			but it does not really save you storage space.
---hardlink              Delete duplicate files and create hard links to a
+hardlink		Delete duplicate files and create hard links to a
                         shared inode. Exit 3 immediately if a file fails to
 			delete for any reason.
-	--force		See --delete --force.
+	force		See delete force.
 
 Exit Status
 0       Success (although zero duplicates may have been found if no true
 	duplicates exist)
 1       Search folder not found
 2       Usage issue
-3       The program exited becasue a file failed to delete. This is never
-	used with --force enabled.
+3       The program exited becasue a file failed to delete. This never
+	is used with --force enabled.
+4	An error occurred while listing files to compare.
 
 EOF)"
   printf "$helpText\n\n"
   exit $1
 }
 
-# Check the arguments provided, if needed
-mode="list" # only relevant if no arguments are given.
-force="disabled" # this is the default. The user overrides this with --force
-deleteHardLinks="disabled"
-
-if [[ $# -ne 0 ]]&&[[ $# -lt 5 ]]; then
-  firstArg="$1"
-  if [[ "$firstArg" == "--help" ]]; then
-    printUsage 0
-  elif [[ "$firstArg" == "--list" ]]; then
-    mode="list"
-  elif [[ "$firstArg" == "--delete" ]]; then
-    mode="delete"
-  elif [[ "$firstArg" == "--hardlink" ]]; then
-    mode="hardlink"
-  elif [[ -d "$firstArg" ]]; then
-    mode="list"
-    searchFolder="$firstArg"
-  else
-    printUsage 2
-  fi
-  
-  if [[ -n "$searchFolder" ]]&&[[ $# -ge 2 ]]; then
-    # If the first argument was the folder, there should be no additional arguments.
-    printUsage 2
-    
-  elif [[ "$mode" == "delete" ]]||[[ "$mode" == "hardlink" ]]; then
-    # If using delete or hardlink, the user might be enabling force. This assumes correct
-    # usage. A real check of the folder argument will be done below.
-    secondArg="$2"
-    if [[ "$secondArg" == "--force" ]]; then
-      force="enabled"
-    elif [[ $secondArg == "--deletehl" ]]; then
-      if [[ "$mode" == "delete" ]]; then
-        deleteHardLinks="enabled"
-      else
-        # If they are using dedup.sh --hardlinks --deletehl, then they are silly people. What do they think will happen?
-        printUsage 2
-      fi
-    else
-      searchFolder="$secondArg"
-    fi
-    if [[ -z "$searchFolder" ]]&&[[ $# -ge 3 ]]; then # if we didn't set the search folder yet, there may yet be a --deletehl or a folder.
-      thirdArg="$3"
-      if [[ $thirdArg == "--deletehl" ]]; then 
-        if [[ "$mode" == "delete" ]]; then
-          deleteHardLinks="enabled"
-        else
-          # If they are using dedup.sh --hardlinks --force --deletehl, then they are still silly people.
-          printUsage 2
-        fi
-        if [[ $# == 4 ]]; then
-          searchFolder="$4"
-        fi
-      else
-        searchFolder="$thirdArg"
-      fi
-    fi
-    
-  elif [[ "$mode" == "list" ]]&&[[ "$#" -gt 2 ]]; then
-    # Then the user has done something strange, like try to apply force to list.
-    # If that isn't what the user is doing, the user might not realize that an
-    # argument needs to be escaped.
-    secondArg="$2"
-    if [[ "$secondArg" == "--force" ]]; then
-      printf "Cannot apply force to list.\nFor usage information, use dedup.sh --help.\n\n"
-      exit 2
-    else
-      printf "list only takes one additional optional argument, a folder to search. Two were provided.\n$secondArg \n$3 \nFor usage information, use dedup.sh --help.\n\n"
-      exit 2
-    fi
-    
-  elif [[ $# == 2 ]]; then
-    # If there is a second argument, then they are providing the folder.
-    # I will check below if a real folder exists at this path.
-    searchFolder="$2"
-  fi
-elif [[ $# -ge 4 ]]; then
-  printUsage 2
-fi
-
-# ask for a folder if one was not provided.
-if [[ -z "$searchFolder" ]]; then
-  echo "Drag a folder to search onto Terminal, then press return. Folders will be searched recursively without limit."
-  read searchFolder
-fi
-
-
-# Setup logging.
+# Set up logging
 eval mkdir -p "~/Library/Logs/org.danielfisher.dedup"
 myLogFile="~/Library/Logs/org.danielfisher.dedup/$( echo `date | sed -e 's/ /_/g' -e 's/:/_/g'`.log )"
-echo "Log: $myLogFile" >> "$(eval echo $myLogFile)"
-echo "Search Folder: $searchFolder" >> "$(eval echo $myLogFile)"
+printf "Log: $myLogFile\n" >> "$(eval echo $myLogFile)"
+
+# Check any provided arguments provided
+for arg in "$@"
+do
+  if [[ -z "$mode" ]] && ( [[ "$arg" == "help" ]]||[[ "$arg" == "list" ]]||[[ "$arg" == "delete" ]]||[[ "$arg" == "hardlink" ]] ); then
+    if [[ -z "$mode" ]]; then
+      mode="$arg"
+    else
+      # then the user is providing multiple modes, which is unexpected. Error out.
+      printf "Error: Muliptle modes have been provided, $mode and $arg.\n" | tee -a "$(eval echo $myLogFile)"
+      printf "For usage information, use dedup.sh help.\n\n" | tee -a "$(eval echo $myLogFile)"
+      exit 2
+    fi
+  elif ( [[ "$mode" == "delete" ]]||[[ "$mode" == "hardlink" ]] ) && ( [[ "$arg" == "force" ]]||[[ "$arg" == "deletehl" ]]); then
+    # check for the force or deletehl arguments
+    if [[ "$mode" == "hardlink" ]]&&[[ "$arg" == "deletehl" ]]; then
+      printf "Error: Deletehl is not compatible with hardlink mode.\n" | tee -a "$(eval echo $myLogFile)"
+      printf "For usage information, use dedup.sh help.\n\n" | tee -a "$(eval echo $myLogFile)"
+      exit 2
+    else
+      # It doesn't really matter if they set them multiple times. It also does not matter which order they set them.
+      if [[ "$arg" == "force" ]]; then
+        force="enabled"
+      else
+        deleteHardLinks="enabled"
+      fi
+    fi
+  elif [[ -d "$arg" ]]; then
+    if [[ -z "$mode" ]]; then
+      mode="list"
+    fi
+    searchFolders=( "$searchFolders \"$arg\"" )
+  elif [[ "$arg" == "force" ]]||[[ "$arg" == "deletehl" ]]; then
+    # then the user is setting mode with list, or without first declaring the mode to be delete or hardlink.
+    printf "Error: Cannot use $arg without first choosing delete or hardlink mode.\n" | tee -a "$(eval echo $myLogFile)"
+    printf "For usage information, use dedup.sh help.\n\n" | tee -a "$(eval echo $myLogFile)"
+    exit 2
+  else
+    printf "Error: Unable to discern user intent with argument \""$arg"\".\n" | tee -a "$(eval echo $myLogFile)"
+    printf "For usage information, use dedup.sh help.\n\n" | tee -a "$(eval echo $myLogFile)"
+    exit 2
+  fi
+done
+
+# explicitly set any unset modes or arguments to modes
+if [[ -z "$mode" ]]; then
+  mode="list"
+fi
+if [[ -z "$force" ]]; then
+  force="disabled"
+fi
+if [[ -z "$deleteHardLinks" ]]; then
+  deleteHardLinks="disabled"
+fi
+
+# ask for a (single) folder if one was not provided.
+if [[ -z "$searchFolders" ]]; then
+  echo "Drag a folder to search onto Terminal, then press return. Folders will be searched recursively without limit."
+  read searchFolders
+  if [[ ! -d $searchFolders ]]; then # Verify that the folder exists and is a folder.
+    printf "Error: Unable to locate a folder with that name.\n" | tee -a "$(eval echo $myLogFile)"
+    printf "Check that the folder exists, is a folder, has that name, and is at that location.\n" | tee -a "$(eval echo $myLogFile)"
+    printf "For usage information, use dedup.sh --help.\n\n" | tee -a "$(eval echo $myLogFile)"
+    exit 1
+  else
+    searchFolders="\"$searchFolders\"" # add quotes around the folder.
+  fi
+fi
+
+# Log arguments 
+printf "Search Folders: $searchFolders\n" >> "$(eval echo $myLogFile)"
 printf "Mode: $mode\n" >> "$(eval echo $myLogFile)"
 printf "Force: $force\n" >> "$(eval echo $myLogFile)"
 printf "Delete hard links: $deleteHardLinks\n\n" >> "$(eval echo $myLogFile)"
 
-
-if [[ ! -d $searchFolder ]]; then # Verify that the folder exists and is a folder.
-  printf "Error: Unable to locate a folder with that name.\n" | tee -a "$(eval echo $myLogFile)"
-  printf "Check that the folder exists, is a folder, has that name, and is at that location.\n" | tee -a "$(eval echo $myLogFile)"
-  printf "For usage information, use dedup.sh --help.\n\n" | tee -a "$(eval echo $myLogFile)"
-  exit 1
-fi
 
 # Find, within that folder, all normal files that aren't .DS_Store or .localized.
 # Also exlcude anything that's in a folder that has a . in the folder name.
@@ -166,10 +146,21 @@ fi
 # and it would still deduplicate extensionless files inside of a .app directory.
 #
 # Then, hash each of those files and find both their hashes and  sort the list by
-# hash and inode number, so that duplicates and hard links are both easy to find
+# hash and inode number, so that duplicates and hard links are both easy to find.
+# 
+# Unfortunately, all of this needs to be run through the shell builtin 'eval' because of the
+# way multiple files are handles. That means even more backslashes than normal, throughout the find command.
 #
 # This has a few steps. First, we get all the files with hashes and inodes, and we pair them by file.
-searchResultPairs=$( find "$searchFolder" -type f \! \( -name ".DS_Store" -or -name ".localized" -or -regex ".*\..*/.*" \) -exec ls -i {} \; -exec shasum {} \; | rev | sort | rev )
+searchResultPairs=$( eval find "$searchFolders" -type f \\\! \\\( -name \".DS_Store\" -or -name \".localized\" -or -regex \"\.\*\\\.\.\*\/\.\*\" \\\) -exec ls -i {} \\\; -exec shasum {} \\\; | rev | sort | rev )
+# I recognize that this looks dizzying. The body of this find command will ultimately become -type f ! ( -name .DS_Store -or -name .localized -or -regex .*\..*/.* ) -exec ls -i {} ; -exec shasum {} ;
+# That looks a lot simpler.
+if [[ "$?" -ne 0 ]]; then
+  # Then something went wrong with the find command.
+  echo "Echo: An unexpected error occurred while finding files. Exiting." | tee -a "$(eval echo $myLogFile)"
+  exit 4
+fi
+
 # Then, we loop through the results, and extract the relevant data. I'm doing this within a subshell and storing the output in a variable.
 searchResults="$( for ((ix=1; ix<$(echo "$searchResultPairs" | wc -l); ix+=2)); do
   echo "$( echo "$searchResultPairs" | head -n $ix | tail -n 1 | awk '{print $1}' ) $( echo "$searchResultPairs" | head -n $(( $ix + 1 )) | tail -n 1 )"
