@@ -155,10 +155,10 @@ printf "Delete hard links: $deleteHardLinks\n\n" >> "$(eval echo $myLogFile)"
 # way multiple files are handles. That means even more backslashes than normal, throughout the find command.
 #
 # This has a few steps. First, we get all the files with hashes and inodes, and we pair them by file.
-searchResultPairs=$( eval find "$searchFolders" -type f \\\! \\\( -name \".DS_Store\" -or -name \".localized\" -or -regex \"\.\*\\\.\.\*\/\.\*\" \\\) -exec ls -i {} \\\; -exec shasum {} \\\; | sort | uniq | rev | sort | rev )
+searchResultPairs=$( eval find "$searchFolders" -type f \\\! \\\( -name \".DS_Store\" -or -name \".localized\" -or -regex \"\.\*\\\.\.\*\/\.\*\" \\\) -exec ls -i {} \\\; -exec shasum {} \\\; | rev | sort | uniq | rev )
 # I recognize that this looks dizzying. The body of this find command will ultimately become -type f ! ( -name .DS_Store -or -name .localized -or -regex .*\..*/.* ) -exec ls -i {} ; -exec shasum {} ;
-# | sort | uniq: This is a safeguard against the user accidentally specifying the same folder twice or one folder that contains another folder. It's not perfect, but I'm trying not to delete everyone's data if they make a mistake.
-# | rev | sort | rev: We're sorting by the shasum hash, then by the inode number, and lastly by the file name.
+# | sort | uniq: This is a safeguard against the user accidentally specifying the same folder twice or one folder that contains another folder. I'm trying not to delete everyone's data if they make a mistake.
+# | rev | sort | ... | rev: I'm trying to consolidate shasum hashes and inode numbers. This sorts from the end of the line instead of the beginning.
 
 if [[ "$?" -ne 0 ]]; then
   # Then something went wrong with the find command.
@@ -227,7 +227,7 @@ do
     # and it's hard to determine how much space a file took up after deleting it.
     #
     # The solution is that each duplicate is a duplicate, so it takes up the
-    # same amount of space as its original. `Du -ch` doesnt't actually mind
+    # same amount of space as its original. `Du -ch` doesn't actually mind
     # if you provide the same file multiple times as arguments, and it computes
     # the total amount of disk space that they would have taken up if they were
     # actually separate files.
